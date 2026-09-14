@@ -63,7 +63,8 @@ the GLM-5 model config ships in `model_configs/`.
 3. Go to **Actions → Build and Push Aiconfigurator NPU Image → Run workflow**,
    enter an image tag (e.g. `v0.1.0` or `latest`), and run.
 
-The workflow pushes two tags, e.g.:
+The workflow builds an **arm64 image** (`linux/arm64`, for Ascend 910B
+Kunpeng hosts, QEMU-emulated on x86 runners) and pushes two tags, e.g.:
 
 ```
 quay.io/18896723947/aiconfigurator-npu:v0.1.0

@@ -20,7 +20,7 @@ jobs:
   build-and-push:
     name: Build and Push Aiconfigurator NPU Image
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     permissions:
       contents: read
 
@@ -30,6 +30,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -55,6 +60,7 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
+          platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
