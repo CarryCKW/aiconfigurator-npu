@@ -19,7 +19,7 @@ dependencies = [
     "pyyaml>=6.0",
     "munch>=4.0",
     "matplotlib>=3.7",
-    "plotext>=5.2",
+    "plotext>=5.2,<6.0",
     "prettytable>=3.0",
 ]
 

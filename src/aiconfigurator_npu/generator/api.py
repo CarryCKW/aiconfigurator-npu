@@ -85,9 +85,17 @@ def _load_generator_overrides_from_args(args) -> dict:
     return overrides
 
 
+_FALLBACK_BACKEND_VERSIONS = {
+    "trtllm": "latest",
+    "vllm": "latest",
+    "vllm-ascend": "latest",
+    "sglang": "latest",
+}
+
+
 def _get_default_dynamo_version_mapping() -> tuple[str | None, dict[str, str]]:
     """Fallback default mapping; labels configs with 'latest' per backend."""
-    return "latest", {"trtllm": "latest", "vllm": "latest", "sglang": "latest"}
+    return "latest", dict(_FALLBACK_BACKEND_VERSIONS)
 
 
 def _resolve_backend_version_for_dynamo(dynamo_version: str, backend_name: str | None = None):
@@ -99,7 +107,7 @@ def _resolve_backend_version_for_dynamo(dynamo_version: str, backend_name: str |
     )
     if backend_name is not None:
         return "latest"
-    return {"trtllm": "latest", "vllm": "latest", "sglang": "latest"}
+    return dict(_FALLBACK_BACKEND_VERSIONS)
 
 
 def _generate_backend_artifacts(

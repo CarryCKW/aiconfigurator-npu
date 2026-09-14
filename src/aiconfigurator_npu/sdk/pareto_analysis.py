@@ -388,6 +388,30 @@ def draw_pareto_to_string(
     x_label: str = "tokens/s/user",
     y_label: str = "tokens/s/gpu_cluster",
 ) -> str:
+    """Render one or more Pareto series as ASCII plot text (fails soft).
+
+    plotext 6.x removed/renamed several APIs (plot_size, theme, ...). The plot
+    is presentation-only, so any incompatibility degrades to a notice instead
+    of aborting the run. Fresh installs pin plotext<6 in pyproject.toml and
+    get the full ASCII plot.
+    """
+    try:
+        return _draw_pareto_to_string_impl(
+            title, series, highlight=highlight, x_label=x_label, y_label=y_label
+        )
+    except Exception as exc:
+        logger.warning("ASCII Pareto plot skipped due to plotext API incompatibility: %s", exc)
+        return "(Pareto plot unavailable: incompatible plotext version installed)"
+
+
+def _draw_pareto_to_string_impl(
+    title: str,
+    series: list[dict],
+    *,
+    highlight: dict | None = None,
+    x_label: str = "tokens/s/user",
+    y_label: str = "tokens/s/gpu_cluster",
+) -> str:
     """Render one or more Pareto series as ASCII plot text.
 
     Args:
@@ -401,7 +425,10 @@ def draw_pareto_to_string(
             keys "df", "label", "color", "marker" similar to ``series``.
     """
 
-    plotext.plot_size(80, 30)
+    # plotext 6.x removed plot_size(); only set size when the API exists.
+    _set_plot_size = getattr(plotext, "plot_size", None)
+    if _set_plot_size is not None:
+        _set_plot_size(80, 30)
     plotext.theme("clear")
 
     palette = [
