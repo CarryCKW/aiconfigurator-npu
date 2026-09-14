@@ -1,0 +1,30 @@
+# VCS / CI
+.git/
+.github/
+.gitignore
+
+# Local build & benchmark outputs (mount volumes instead)
+data/
+output/
+results/
+*.tar
+
+# Docs (not needed inside image)
+docs/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Environments / IDE
+.venv/
+venv/
+.idea/
+.vscode/
+.codebuddy/
