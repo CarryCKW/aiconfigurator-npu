@@ -82,8 +82,11 @@ def _validate_model_path(model_path: str) -> str:
         raise argparse.ArgumentTypeError(f"Directory '{model_path}' does not contain a config.json file.")
 
     # Check if it's a file path to config.json directly
+    # NOTE: keep the file path itself — the SDK loader accepts a config.json
+    # file directly, and converting to its dirname breaks files whose name
+    # merely ENDS with "config.json" (e.g. model_configs/zai-org--GLM-5_config.json).
     if os.path.isfile(model_path) and model_path.endswith("config.json"):
-        return os.path.dirname(model_path) or model_path
+        return model_path
 
     # Otherwise treat as HuggingFace model path
     if model_path in common.DefaultHFModels:
@@ -1405,7 +1408,23 @@ def _run_estimate_mode(args):
     print()
 
 
-def main(args):
+def main(args=None):
+    # Console-script entry (`aic-npu ...`) calls main() without parsed args;
+    # programmatic callers may pass an argv list.
+    if args is None or isinstance(args, (list, tuple)):
+        argv = list(args) if args is not None else None
+        # Accept the `aic-npu cli <mode> ...` spelling transparently
+        # (configure_parser registers <mode> at the top level).
+        if argv and argv[0] == "cli":
+            argv = argv[1:]
+        parser = argparse.ArgumentParser(
+            description="Dynamo AIConfigurator for Disaggregated Serving Deployment",
+            epilog=_USAGE_EXAMPLES,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        configure_parser(parser)
+        args = parser.parse_args(argv)
+
     setup_logging(
         level=logging.DEBUG if args.debug else logging.INFO,
         no_color=getattr(args, "no_color", False),

@@ -162,8 +162,11 @@ def enumerate_parallel_config(
                                         not enable_wideep and moe_ep > 1
                                     ):  # wideep only has ep
                                         continue
-                                elif backend == common.BackendName.vllm:
-                                    pass  # TODO
+                                elif backend in (common.BackendName.vllm, common.BackendName.vllm_ascend):
+                                    if moe_tp > 1 and moe_ep > 1:
+                                        # vLLM(vllm-ascend) cannot shard MoE weights by both
+                                        # TP and EP at the same time (see operations.py assert).
+                                        continue
                                 parallel_config_list.append([tp, pp, dp, moe_tp, moe_ep])
             else:
                 if tp * pp in num_gpu_list:
@@ -343,8 +346,32 @@ def _get_hf_auth_headers() -> dict[str, str]:
     return headers
 
 
+def _is_hf_offline() -> bool:
+    """True when offline mode is requested via HF/transformers env vars."""
+    truthy = ("1", "true", "yes")
+    return (
+        os.environ.get("HF_HUB_OFFLINE", "").strip().lower() in truthy
+        or os.environ.get("TRANSFORMERS_OFFLINE", "").strip().lower() in truthy
+    )
+
+
 def _download_hf_json(hf_id: str, filename: str, *, raise_on_404: bool = True) -> dict | None:
-    """Download and parse a JSON file from a HuggingFace model repo."""
+    """Download and parse a JSON file from a HuggingFace model repo.
+
+    Falls back to the ModelScope mirror when HuggingFace is unreachable
+    (helps firewalled/aarch64 environments that can only reach modelscope.cn).
+    Respects HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE: skips all network attempts
+    and fails fast with guidance to use a local config instead.
+    """
+    if _is_hf_offline():
+        raise HuggingFaceDownloadError(
+            f"Offline mode is active (HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE=1); "
+            f"refusing to download {hf_id}'s {filename} from the network. "
+            f"Use a local path instead: (1) --model-path pointing to a directory "
+            f"containing config.json, (2) --model-path pointing directly to a "
+            f"config.json file, or (3) place {hf_id.replace('/', '--')}_{filename} "
+            f"in ./model_configs/ (or the package model_configs/ directory)."
+        )
     url = f"https://huggingface.co/{hf_id}/raw/main/{filename}"
     try:
         req = urllib.request.Request(url, headers=_get_hf_auth_headers())
@@ -363,7 +390,24 @@ def _download_hf_json(hf_id: str, filename: str, *, raise_on_404: bool = True) -
             f"(3) run `huggingface-cli login` (token stored at {token_path})."
         ) from e
     except Exception as e:
-        raise HuggingFaceDownloadError(f"Failed to download {hf_id}'s {filename} from HuggingFace: {e}") from e
+        # HuggingFace unreachable — try the ModelScope mirror before giving up.
+        ms_url = f"https://modelscope.cn/models/{hf_id}/resolve/master/{filename}"
+        try:
+            req = urllib.request.Request(ms_url)
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as ms_e:
+            if ms_e.code == 404 and not raise_on_404:
+                return None
+        except Exception:
+            pass
+        raise HuggingFaceDownloadError(
+            f"Failed to download {hf_id}'s {filename}: HuggingFace ({url}) "
+            f"and ModelScope mirror ({ms_url}) are both unreachable: {e}. "
+            f"For offline machines, use --model-path with a local config.json "
+            f"file/directory, or place {hf_id.replace('/', '--')}_{filename} "
+            f"in ./model_configs/."
+        ) from e
 
 
 def _download_hf_config(hf_id: str) -> dict:
@@ -632,25 +676,48 @@ def _parse_hf_config_json(config: dict) -> dict:
     }
 
 
+def _iter_model_config_dirs():
+    """
+    Candidate directories holding pre-downloaded HF configs, in priority order:
+    the package resource dir first, then ./model_configs next to the CWD
+    (this repo keeps GLM-5 etc. in the top-level model_configs/ directory).
+    """
+    yield pkg_resources.files("aiconfigurator_npu") / "model_configs"
+    yield Path.cwd() / "model_configs"
+
+
 def _get_model_config_path():
     """
-    Get the model config path
+    Get the primary model config path
     """
-    return pkg_resources.files("aiconfigurator_npu") / "model_configs"
+    return next(_iter_model_config_dirs())
+
+
+def _find_pre_downloaded_hf_file(hf_id: str, filename: str):
+    """Locate a pre-downloaded HF config file (e.g. ``zai-org--GLM-5_config.json``).
+
+    Returns the first existing Path across candidate model_configs dirs, or None.
+    """
+    target = f"{hf_id.replace('/', '--')}_{filename}"
+    for base in _iter_model_config_dirs():
+        candidate = base / target
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _load_pre_downloaded_hf_config(hf_id: str) -> dict:
-    """Load a cached HuggingFace config.json from the model_configs package directory."""
-    config_path = _get_model_config_path() / f"{hf_id.replace('/', '--')}_config.json"
-    if not config_path.exists():
+    """Load a cached HuggingFace config.json from a model_configs directory."""
+    config_path = _find_pre_downloaded_hf_file(hf_id, "config.json")
+    if config_path is None:
         raise ValueError(f"HuggingFace model {hf_id} is not cached in model_configs directory.")
     return _load_json_with_infinity(config_path)
 
 
 def _load_pre_downloaded_hf_quant_config(hf_id: str) -> dict | None:
     """Load a cached hf_quant_config.json, returning None if not present."""
-    config_path = _get_model_config_path() / f"{hf_id.replace('/', '--')}_hf_quant_config.json"
-    if not config_path.exists():
+    config_path = _find_pre_downloaded_hf_file(hf_id, "hf_quant_config.json")
+    if config_path is None:
         return None
     return _load_json_with_infinity(config_path)
 
@@ -862,7 +929,22 @@ def _load_model_config_from_model_path(model_path: str) -> dict:
         config = _load_local_config(model_path)
         return _attach_inferred_quant_fields(_attach_hf_quant_config(config, _load_local_quant_config(model_path)))
 
-    # Otherwise treat as HuggingFace path
+    # Support passing a config.json file path directly (incl. files whose
+    # name merely ends with "config.json", e.g. model_configs/zai-org--GLM-5_config.json)
+    if os.path.isfile(model_path) and model_path.endswith("config.json"):
+        config = _load_json_with_infinity(model_path)
+        return _attach_inferred_quant_fields(_attach_hf_quant_config(config, None))
+
+    # Otherwise treat as HuggingFace path: try the local cache first, then download
+    config = None
+    try:
+        config = _load_pre_downloaded_hf_config(model_path)
+        hf_quant_config = _load_pre_downloaded_hf_quant_config(model_path)
+    except ValueError:
+        config = None
+    if config is not None:
+        return _attach_inferred_quant_fields(_attach_hf_quant_config(config, hf_quant_config))
+
     if model_path in DefaultHFModels:
         config = _load_pre_downloaded_hf_config(model_path)
         return _attach_inferred_quant_fields(

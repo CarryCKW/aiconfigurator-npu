@@ -148,16 +148,22 @@ def agg_pareto(
         results_df = results_df.drop_duplicates(ignore_index=True)
         results_df = results_df.sort_values(by="tokens/s/gpu", ascending=False).reset_index(drop=True)
     else:
+        if all_configs_oom:
+            hint = (
+                f" ({len(exceptions)} parallel configs were also skipped as invalid,"
+                f" last: {exceptions[-1]})"
+                if exceptions
+                else ""
+            )
+            raise RuntimeError(
+                "No results found: the model does not fit in GPU memory for any parallel "
+                "configuration. Try increasing --total-gpus, using a quantized model, or "
+                "using a system with more VRAM per GPU." + hint
+            )
         if exceptions:
             raise RuntimeError(
                 f"No results found for any parallel configuration. Showing last exception: {exceptions[-1]}"
             ) from exceptions[-1]
-        if all_configs_oom:
-            raise RuntimeError(
-                "No results found: the model does not fit in GPU memory for any parallel "
-                "configuration. Try increasing --total-gpus, using a quantized model, or "
-                "using a system with more VRAM per GPU."
-            )
         raise RuntimeError(
             "No results found for any parallel configuration. No configuration satisfied the "
             "TTFT/TPOT or request-latency constraints. Try relaxing --ttft, --tpot, or "
