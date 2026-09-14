@@ -1,0 +1,37 @@
+# Example experiment definitions for `aic-npu cli exp --yaml-path example.yaml`
+# Top-level keys are experiment names; optional "exps" list controls run order.
+exps:
+  - glm5_agg_vllm
+  - glm5_disagg_vllm
+
+glm5_agg_vllm:
+  serving_mode: agg
+  model_path: zai-org/GLM-5
+  system_name: ascend_910b
+  backend_name: vllm
+  total_gpus: 16
+  isl: 4000
+  osl: 1000
+  ttft: 3000
+  tpot: 50
+  database_mode: HYBRID
+
+glm5_disagg_vllm:
+  serving_mode: disagg
+  model_path: zai-org/GLM-5
+  system_name: ascend_910b
+  decode_system_name: ascend_910b
+  backend_name: vllm
+  total_gpus: 16
+  isl: 4000
+  osl: 1000
+  ttft: 3000
+  tpot: 50
+  database_mode: HYBRID
+  config:
+    prefill:
+      batch_size: 8
+      workers: 1
+    decode:
+      batch_size: 64
+      workers: 1
