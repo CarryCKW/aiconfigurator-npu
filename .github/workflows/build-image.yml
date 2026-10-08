@@ -59,7 +59,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: docker/Dockerfile.vllm23.cann91.v1
+          file: docker/Dockerfile.vllm23
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
