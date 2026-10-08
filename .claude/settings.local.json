@@ -11,7 +11,11 @@
       "Bash(do:*)",
       "Bash(done:*)",
       "Bash(tar:*)",
-      "Bash(PYTHONIOENCODING=utf-8 python:*)"
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(git -C \"D:\\\\Projects\\\\ExpProjects\\\\GITProject\\\\aiconfigurator-npu\" log --oneline -15)",
+      "Bash(git -C \"D:\\\\Projects\\\\ExpProjects\\\\GITProject\\\\aiconfigurator-npu\" log --oneline --all -- docker/)",
+      "Bash(git -C \"D:\\\\Projects\\\\ExpProjects\\\\GITProject\\\\aiconfigurator-npu\" show d950fad --stat)",
+      "Bash(git -C \"D:\\\\Projects\\\\ExpProjects\\\\GITProject\\\\aiconfigurator-npu\" show:*)"
     ]
   }
 }

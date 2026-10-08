@@ -16,9 +16,12 @@ ARG PYTORCH_CPU_INDEX=https://download.pytorch.org/whl/cpu/
 # 覆盖底座镜像预置的 repo.huaweicloud.com 国内源（GitHub runner 上慢，且无 PEP 658 metadata，
 # pip 读元数据要整包下载 wheel，实测导致 backtrack 时 IncompleteRead 失败）。
 # 环境变量优先级高于 pip.conf，且会传递给 build isolation 的子 pip。
+# SOC_VERSION: vllm-ascend 的 setup.py 靠 npu-smi 探测芯片来编译算子，CI 无 NPU 需显式指定
+# （910B / Atlas A2 -> ascend910b1）。
 ENV PIP_INDEX_URL=https://pypi.org/simple \
     PIP_RETRIES=15 \
-    PIP_TIMEOUT=120
+    PIP_TIMEOUT=120 \
+    SOC_VERSION=ascend910b1
 
 RUN pip install --no-cache-dir --upgrade pip
 
