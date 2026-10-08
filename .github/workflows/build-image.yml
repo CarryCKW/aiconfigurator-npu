@@ -14,7 +14,7 @@ concurrency:
 
 env:
   REGISTRY: quay.io
-  IMAGE_NAME: 18896723947/aiconfigurator-npu
+  IMAGE_NAME: caigentle/aiconfigurator-npu
 
 jobs:
   build-and-push:

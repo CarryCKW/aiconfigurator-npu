@@ -37,13 +37,13 @@ collector/
 
 ```bash
 # GEMM
-python collector/npu/collect_gemm.py --quant-types bf16 w8a8_dynamic --output-dir ./gemm_data
+python collector/npu/collect_gemm.py --quant-types bf16 w8a8_dynamic --output-dir ./gemm_data_0923_2
 
 # Attention
-python collector/npu/collect_attn.py --op-types context generation --output-dir ./attn_data
+python collector/npu/collect_attn.py --op-types context generation --output-dir ./attn_data_0923_2
 
 # MoE
-python collector/npu/collect_moe.py --quant-types bf16 w8a8_dynamic --output-dir ./moe_data
+python collector/npu/collect_moe.py --quant-types bf16 w8a8_dynamic --output-dir ./moe_data_0923_2
 ```
 
 ## Docker Image

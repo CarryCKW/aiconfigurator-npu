@@ -1,0 +1,105 @@
+ 现在我找到了答案。让我总结分析结果：
+
+  数据来源分析
+
+  1. 数据位置对比
+
+  backup 目录中的数据:
+  backup/aic_npu_v0920_workspace_backup/workspace/data/
+  ├── hccl_data/
+  │   ├── custom_allreduce_perf.txt  (18 行, 580 bytes)
+  │   └── nccl_perf.txt              (37 行, 1508 bytes)
+  └── systems/data/ascend_910b/vllm-ascend/0.18.0/
+      └── nccl_perf.txt              (同上)
+
+  2. 数据内容对比
+
+  custom_allreduce_perf.txt (18 条记录):
+  allreduce_dtype,num_gpus,message_size,latency,power
+  half,8,524288,0.322721,0.0
+  half,8,655360,0.322460,0.0
+  ...
+  half,8,536870912,15.032148,0.0
+
+  nccl_perf.txt (37 条记录):
+  nccl_dtype,op_name,num_gpus,message_size,latency,power
+  half,all_reduce,8,524288,0.322721,0.0    # 与 custom_allreduce 数据相同
+  half,all_reduce,8,655360,0.322460,0.0
+  ...
+  half,all_gather,8,524288,0.406493,0.0    # 额外包含 all_gather 数据
+  half,all_gather,8,655360,0.434424,0.0
+  ...
+
+  关键发现: custom_allreduce_perf.txt 中的 allreduce 数据与 nccl_perf.txt 中的 all_reduce 数据完全相同！
+
+  3. 项目中没有 HCCL 采集脚本
+
+  经过搜索，项目中没有专门的 HCCL 性能数据采集脚本。这些数据很可能是：
+
+  1. 使用华为 Ascend 工具链采集:
+    - ascend-benchmark 工具
+    - HCCL 自带的 benchmark 程序
+    - 或者使用 PyTorch NPU 手动编写采集脚本
+  2. 从其他项目/框架复制:
+    - 从 vLLM-Ascend 项目
+    - 从 SGLang-Ascend 项目
+    - 从内部测试数据
+
+  4. 正确的数据放置位置
+
+  根据代码 perf_database.py:2118-2123:
+
+  data_dir = os.path.join(systems_root, self.system_spec["data_dir"], backend, version)
+  # 即: systems/data/ascend_910b/vllm-ascend/0.18.0/
+
+  nccl_data_dir = os.path.join(
+      systems_root,
+      self.system_spec["data_dir"],
+      "nccl",
+      self.system_spec["misc"]["nccl_version"],
+  )
+  # 即: systems/data/ascend_910b/nccl/2.26.0/
+
+  正确的目录结构应该是:
+  systems/data/ascend_910b/
+  ├── vllm-ascend/
+  │   └── 0.18.0/
+  │       ├── custom_allreduce_perf.txt  ← 应该放在这里
+  │       ├── gemm_perf.txt
+  │       ├── context_attention_perf.txt
+  │       └── ...
+  └── nccl/
+      └── 2.26.0/
+          └── nccl_perf.txt              ← 应该放在这里
+
+  5. 数据采集方法
+
+  由于项目中没有采集脚本，以下是采集这些数据的推荐方法：
+
+  方法 1: 使用 PyTorch NPU 采集 (参考我之前创建的文档)
+
+  方法 2: 使用华为 Ascend 工具:
+  # 使用 ascend-benchmark 工具
+  ascend-bench --op all_reduce --dtype half --sizes 524288,655360,... --gpus 8
+
+  方法 3: 从 HCCL 示例程序采集:
+  # 编译 HCCL 示例
+  cd /usr/local/Ascend/hccl/example
+  make
+
+  # 运行 benchmark
+  ./all_reduce_benchmark -b 524288 -e 536870912 -d half -g 8
+
+  6. 总结
+  ┌──────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │   问题   │                                                             答案                                                              │
+  ├──────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 数据来源 │ 外部采集后手动放入，项目中没有采集脚本                                                                                        │
+  ├──────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 数据格式 │ CSV 格式，包含 dtype, num_gpus, message_size, latency, power                                                                  │
+  ├──────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 正确位置 │ custom_allreduce_perf.txt → systems/data/ascend_910b/vllm-ascend/0.18.0/nccl_perf.txt → systems/data/ascend_910b/nccl/2.26.0/ │
+  ├──────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 采集工具 │ PyTorch NPU / ascend-benchmark / HCCL 示例程序                                                                                │
+  └──────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  注意: backup 中的 data/hccl_data/ 目录是一个临时存放位置，数据需要复制到正确的系统目录才能被 AIConfigurator 加载使用。

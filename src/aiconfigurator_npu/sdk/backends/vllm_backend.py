@@ -44,29 +44,33 @@ class VLLMBackend(BaseBackend):
         ctx_tokens = kwargs.get("ctx_tokens")
         assert ctx_tokens is not None, "ctx_tokens is required"
         balance_score = isl * b / ctx_tokens / osl
+        # 上下文处理步数与生成步数的比值。若 balance_score > 1，说明 prefill 阶段比 decode 阶段更耗时，属于 prefill 密集。若 balance_score < 1，说明 decode 阶段更耗时，属于 生成密集。
 
         try:
             summary = self._agg_cache[isl][osl][b][ctx_tokens]
         except KeyError:
             # we would like to calculate num_mix_steps and num_genonly_steps based on
             # isl, osl, b, ctx_tokens within osl steps, need to finish all the ctx tokens
-            steps_to_finish_ctx = np.ceil(isl * b / ctx_tokens)
+            steps_to_finish_ctx = np.ceil(isl * b / ctx_tokens) # 完成所有请求的上下文处理所需的总步数。
             num_mix_steps = num_genonly_steps = 0
             num_mix_steps_for_tpot_calc = 0  # this is a correction for tpot calc only.
             if b > 1:
+                # 上下文处理时间比输出长度还长。在整个输出过程中，每一步都处于“混合”状态（同时处理 prefill 和 decode），没有纯生成步。
                 if steps_to_finish_ctx >= osl:
-                    num_mix_steps = steps_to_finish_ctx
-                    num_mix_ctx_tokens = ctx_tokens
-                    num_mix_gen_tokens = max(1, b // (steps_to_finish_ctx / osl))
+                    num_mix_steps = steps_to_finish_ctx # 总步数取完成上下文所需步数。
+                    num_mix_ctx_tokens = ctx_tokens # 每个混合步处理 ctx_tokens 个上下文 token。
+                    num_mix_gen_tokens = max(1, b // (steps_to_finish_ctx / osl))  # 总生成 token 需求为 b * osl。这些生成 token 分布在 steps_to_finish_ctx 个混合步中。平均每步生成 b * osl / steps_to_finish_ctx 个 token。b // (steps_to_finish_ctx / osl) 等价于 floor(b * osl / steps_to_finish_ctx)，并保证至少为 1。
                     num_genonly_steps = 0
                     num_genonly_tokens = 0
                     num_mix_steps_for_tpot_calc = num_mix_steps
                 else:
+                    # 先经过若干混合步完成所有上下文处理，剩余步数全部是纯生成步。
                     # 3-step is an empirical correction for pipelining requests where new requests
                     # cannot be enqueued immediately after last request's exit
                     num_mix_steps = steps_to_finish_ctx
                     num_mix_ctx_tokens = ctx_tokens
                     num_mix_gen_tokens = b - np.ceil(ctx_tokens / isl)  # the error check is outside
+                    # 剩余 b - ceil(ctx_tokens / isl) 个请求已经完成 prefill，可以进入 decode，因此每个混合步生成这么多 token。
                     assert num_mix_gen_tokens >= 1, (
                         f"num_mix_gen_tokens: {num_mix_gen_tokens}, b: {b}, ctx_tokens: {ctx_tokens}, isl: {isl}"
                     )
@@ -74,6 +78,7 @@ class VLLMBackend(BaseBackend):
                     num_genonly_tokens = b
                     num_mix_steps_for_tpot_calc = max(1, num_mix_steps - 3)
             elif b == 1:
+                # 单请求时，第一步是纯 prefill（处理上下文），不生成 token；后续 osl - 1 步是纯 decode，每步生成 1 个 token。
                 # special case for b=1
                 num_mix_steps = 1
                 num_mix_ctx_tokens = ctx_tokens
@@ -406,6 +411,7 @@ class VLLMBackend(BaseBackend):
         Returns:
             A summary of the best agg result under constraints.
         """
+        # 需要注意 ctx_stride 和 enable_chunked_prefill
         isl = runtime_config.isl
         osl = runtime_config.osl
         ttft = runtime_config.ttft

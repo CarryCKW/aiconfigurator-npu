@@ -8,6 +8,12 @@ Usage:
         --device "Ascend 910B" \
         --framework vllm-ascend \
         --version 0.18.0
+    python tools/convert_to_aiconfigurator.py \
+        --input-dir /workspace/collect-0923-1 \
+        --output-dir /workspace/collect-0923-1-convert \
+        --device "Ascend 910B" \
+        --framework vllm-ascend \
+        --version 0.18.0
 """
 
 import argparse

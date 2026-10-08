@@ -6,3 +6,5 @@ dist/
 build/
 .eggs/
 checkpoint*.json
+backup/
+nul

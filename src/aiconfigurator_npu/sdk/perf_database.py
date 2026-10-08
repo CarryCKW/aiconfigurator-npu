@@ -2120,7 +2120,7 @@ class PerfDatabase:
             self.system_spec["data_dir"],
             "nccl",
             self.system_spec["misc"]["nccl_version"],
-        )
+        ) # 此处说明了NCCL的路径位置
 
         def _load_op_data(op_filename_enum: PerfDataFilename) -> LoadedOpData | tuple[LoadedOpData, ...]:
             func_map = {

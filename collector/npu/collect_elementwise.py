@@ -156,7 +156,7 @@ def main():
     )
     parser.add_argument("--hidden-list", nargs="+", type=int, default=[2048, 4096, 5120, 7168, 8192])
     parser.add_argument("--intermediate-list", nargs="+", type=int, default=[1024, 2048, 3200, 4096])
-    parser.add_argument("--vocab-size-list", nargs="+", type=int, default=[32000, 128256, 151936, 152064])
+    parser.add_argument("--vocab-size-list", nargs="+", type=int, default=[32000, 128256, 151936, 152064, 248320])
     parser.add_argument("--batch-list", nargs="+", type=int, default=[1, 4, 8, 16, 32, 64, 128])
     parser.add_argument("--num-heads-list", nargs="+", type=int, default=[4, 8, 16, 32, 64])
     parser.add_argument("--head-size", type=int, default=128)

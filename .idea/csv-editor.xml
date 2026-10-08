@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CsvFileAttributes">
+    <option name="attributeMap">
+      <map>
+        <entry key="\backup\aic_npu_v0920_workspace_backup\workspace\model_configs\qwen_3_8_config.json_ascend_910b_vllm-ascend_isl4000_osl500_ttft1200_tpot50_605081\agg\best_config_topn.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\backup\aic_npu_v0920_workspace_backup\workspace\model_configs\qwen_3_8_config.json_ascend_910b_vllm-ascend_isl4000_osl500_ttft1200_tpot50_605081\agg\pareto.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
