@@ -1,0 +1,52 @@
+# Ascend NPU runtime image for aiconfigurator-npu
+# Base: pure CANN 9.1.0 (910B / openEuler 24.03 / Python 3.11 devel) — no vLLM preinstalled.
+# vLLM 0.23.0 (PyPI 无 0.23.0.post1，post1 是 vllm-ascend 版本) + vllm-ascend 0.23.0.post1
+# 安装步骤与官方文档一致: https://docs.vllm.ai/projects/ascend/en/v0.23.0/installation.html
+# Usage on 910B: see README.md "Docker Image" section.
+FROM quay.io/ascend/cann:9.1.0-910b-openeuler24.03-py3.11-devel
+
+ARG VLLM_VERSION=0.23.0
+ARG VLLM_ASCEND_VERSION=0.23.0.post1
+
+# 华为云 Ascend pypi 镜像: 提供 triton-ascend==3.2.2 (PyPI 上最高只有 3.2.0)
+ARG ASCEND_PYPI_INDEX=https://mirrors.huaweicloud.com/ascend/repos/pypi
+# x86 构建机上 torch 走 CPU wheel，避免拉取无用的 CUDA 依赖
+ARG PYTORCH_CPU_INDEX=https://download.pytorch.org/whl/cpu/
+
+RUN pip install --no-cache-dir --upgrade pip
+
+# 1) vLLM (PyPI 预编译 wheel) -> 2) vllm-ascend (PyPI sdist 源码构建，依赖 torch/torch-npu/triton-ascend)
+# vllm-ascend 不声明 vllm 依赖，因此必须分两步安装。
+RUN pip install --no-cache-dir \
+        --extra-index-url ${PYTORCH_CPU_INDEX} \
+        "vllm==${VLLM_VERSION}" \
+    && pip install --no-cache-dir \
+        --extra-index-url ${ASCEND_PYPI_INDEX} \
+        --extra-index-url ${PYTORCH_CPU_INDEX} \
+        "vllm-ascend==${VLLM_ASCEND_VERSION}" \
+    && python -c "import vllm; print('vllm', vllm.__version__)" \
+    && python -c "import vllm_ascend; print('vllm_ascend ok')"
+
+WORKDIR /workspace
+
+# Copy only what is needed (keep context small, maximize layer caching)
+COPY collector/ ./collector/
+COPY tools/ ./tools/
+COPY model_configs/ ./model_configs/
+COPY src/ ./src/
+COPY pyproject.toml README.md ./
+
+# Install the search-engine package (registers the `aic-npu` CLI).
+# Pure-Python deps (numpy/pandas/scipy/...) resolve inside the base image.
+RUN pip install --no-cache-dir -e .
+
+# Offline mode: GLM-5 model config ships in model_configs/, no HuggingFace Hub access needed.
+# PYTHONPATH: collector scripts import bench_engine/*_factory from collector/ root.
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    PYTHONPATH=/workspace/collector
+
+# Pre-create benchmark output dir (mount a volume here when running collectors)
+RUN mkdir -p /workspace/data
+
+CMD ["/bin/bash"]
