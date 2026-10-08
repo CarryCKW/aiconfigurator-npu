@@ -10,7 +10,8 @@
       "Bash(for u in \"https://mirrors.huaweicloud.com/ascend/repos/pypi/triton-ascend/\" \"https://mirrors.huaweicloud.com/ascend/repos/pypi/simple/vllm-ascend/\" \"https://mirrors.huaweicloud.com/ascend/repos/pypi/vllm-ascend/\")",
       "Bash(do:*)",
       "Bash(done:*)",
-      "Bash(tar:*)"
+      "Bash(tar:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)"
     ]
   }
 }

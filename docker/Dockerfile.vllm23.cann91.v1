@@ -8,22 +8,37 @@ FROM quay.io/ascend/cann:9.1.0-910b-openeuler24.03-py3.11-devel
 ARG VLLM_VERSION=0.23.0
 ARG VLLM_ASCEND_VERSION=0.23.0.post1
 
-# 华为云 Ascend pypi 镜像: 提供 triton-ascend==3.2.2 (PyPI 上最高只有 3.2.0)
+# Ascend 官方 wheel 仓库: 提供 triton-ascend==3.2.2 (PyPI 上最高只有 3.2.0)，非加速镜像，必须保留
 ARG ASCEND_PYPI_INDEX=https://mirrors.huaweicloud.com/ascend/repos/pypi
-# x86 构建机上 torch 走 CPU wheel，避免拉取无用的 CUDA 依赖
+# torch 走 CPU wheel，避免拉取无用的 CUDA 依赖
 ARG PYTORCH_CPU_INDEX=https://download.pytorch.org/whl/cpu/
+
+# 覆盖底座镜像预置的 repo.huaweicloud.com 国内源（GitHub runner 上慢，且无 PEP 658 metadata，
+# pip 读元数据要整包下载 wheel，实测导致 backtrack 时 IncompleteRead 失败）。
+# 环境变量优先级高于 pip.conf，且会传递给 build isolation 的子 pip。
+ENV PIP_INDEX_URL=https://pypi.org/simple \
+    PIP_RETRIES=15 \
+    PIP_TIMEOUT=120
 
 RUN pip install --no-cache-dir --upgrade pip
 
-# 1) vLLM (PyPI 预编译 wheel) -> 2) vllm-ascend (PyPI sdist 源码构建，依赖 torch/torch-npu/triton-ascend)
-# vllm-ascend 不声明 vllm 依赖，因此必须分两步安装。
+# 1) vLLM（PyPI 预编译 wheel）单独一层，便于命中缓存
 RUN pip install --no-cache-dir \
+        --prefer-binary \
         --extra-index-url ${PYTORCH_CPU_INDEX} \
-        "vllm==${VLLM_VERSION}" \
-    && pip install --no-cache-dir \
+        "vllm==${VLLM_VERSION}"
+
+# 2) vllm-ascend（PyPI 只有 sdist，pip 会开 build isolation 重新解析 torch/torchvision/triton-ascend 等）。
+#    用 PIP_CONSTRAINT 锁死 Ascend 栈版本，避免 pip 为解决版本冲突在各索引间反复整包下载做 backtrack；
+#    约束以环境变量形式生效，build isolation 的子 pip 同样遵守。
+RUN printf 'torch==2.10.0\ntorchvision==0.25.0\ntorchaudio==2.10.0\ntorch-npu==2.10.0.post4\ntriton-ascend==3.2.2\n' \
+        > /etc/pip-constraints.ascend \
+    && PIP_CONSTRAINT=/etc/pip-constraints.ascend pip install --no-cache-dir \
+        --prefer-binary \
         --extra-index-url ${ASCEND_PYPI_INDEX} \
         --extra-index-url ${PYTORCH_CPU_INDEX} \
         "vllm-ascend==${VLLM_ASCEND_VERSION}" \
+    && rm -rf /root/.cache/pip \
     && python -c "import vllm; print('vllm', vllm.__version__)" \
     && python -c "import vllm_ascend; print('vllm_ascend ok')"
 
