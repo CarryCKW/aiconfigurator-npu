@@ -17,6 +17,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\docs\HCCL_ALLREDUCE_PERF_DATA_GUIDE.md">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>
